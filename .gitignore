@@ -1,0 +1,12 @@
+*.pyc
+
+*.prj 
+*.cpg
+*.qpj
+*.xml
+
+*.shp 
+*.sbn
+*.sbx
+*.shx
+*.dbf
