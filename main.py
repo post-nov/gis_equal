@@ -2,6 +2,48 @@ import shapefile
 import collections
 import argparse
 import os
+import time
+
+def hello_user():
+    global lines_shp, points_shp, accuracy, step
+
+    shp_files = []
+    for file in os.listdir():
+        if file.endswith("shp"):
+            shp_files.append(file[:-4])
+
+    os.system('cls')
+    print("GREAT GIS_EQUALIZER 2000")
+    
+    print("\nAll shapefiles in current catalog:")
+    for num in range(len(shp_files)):
+        print(num + 1, shp_files[num])
+    lines_shp = shp_files[int(input("Lines shapefile:")) - 1]
+    print("\nLines set to", lines_shp)
+    if lines_shp == "":
+        exit()
+
+    print("\nAll shapefiles in current catalog:")
+    for num in range(len(shp_files)):
+        print(num + 1, shp_files[num])
+    points_shp = shp_files[int(input("Elevation shapefile:")) - 1]
+    print("\nElevations set to", lines_shp)
+    if points_shp == "":
+        exit()
+
+    accuracy = input("\nChoose accuracy (5):")
+    if accuracy:
+        accuracy = float(accuracy)
+    if accuracy == "":
+        accuracy = 5
+
+    step = input("\nChoose step (10):")
+    if step:
+        step = int(step)
+    if step == "":
+        step = 10
+
+    print("\nLet's go...\n")
 
 
 class Road():
@@ -51,14 +93,14 @@ class Road():
         y_coeff = ((max(y1, y2) - min(y1, y2)) / diag)
         divided_sector = []
         if x1 <= x2:
-            if y1 < y2:
+            if y1 <= y2:
                 for i in range(int(diag)):
                     divided_sector.append((x1 + x_coeff * i, y1 + y_coeff * i))
             if y1 > y2:
                 for i in range(int(diag)):
                     divided_sector.append((x1 + x_coeff * i, y1 - y_coeff * i))
-        if x1 > x2:
-            if y1 < y2:
+        if x1 >= x2:
+            if y1 <= y2:
                 for i in range(int(diag)):
                     divided_sector.append((x1 - x_coeff * i, y1 + y_coeff * i))
             if y1 > y2:
@@ -87,7 +129,9 @@ class Road():
         # Number of elev points which's been binded to road
         self.num_of_elevations = len(list_of_known)
 
-        assert(len(list_of_known) > 1), f"Not enough point on line with {list_of_sectors[0][0]}"
+        if len(list_of_known) < 2:
+            print(f"Not enough point on line with {list_of_sectors[0][0]}")
+            return
 
         # Central sectors
         for sec_num in range(len(list_of_sectors) - 2):
@@ -154,7 +198,7 @@ class Elevation():
 
 
 def parse():
-    global road_file, points_file, accuracy, step
+    global lines_shp, points_shp, accuracy, step
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-l', '--lines',
@@ -169,8 +213,8 @@ def parse():
                         help='specify distance between points', default=5, type=int)
     args = parser.parse_args()
 
-    road_file = args.lines
-    points_file = args.points
+    lines_shp = args.lines
+    points_shp = args.points
     accuracy = args.accuracy
     step = args.step
 
@@ -182,15 +226,15 @@ def read_files():
     road_list = []
     elevations = None
 
-    with open(f'{road_file}.shp', 'rb') as myshp:
-        with open(f'{road_file}.dbf', 'rb') as mydbf:
+    with open(f'{lines_shp}.shp', 'rb') as myshp:
+        with open(f'{lines_shp}.dbf', 'rb') as mydbf:
             r = shapefile.Reader(shp=myshp, dbf=mydbf)
             roads = r.shapes()
             for num_road in range(len(roads)):
                 road_list.append(Road(roads[num_road].points))
 
-    with open(f'{points_file}.shp', 'rb') as myshp:
-        with open(f'{points_file}.dbf', 'rb') as mydbf:
+    with open(f'{points_shp}.shp', 'rb') as myshp:
+        with open(f'{points_shp}.dbf', 'rb') as mydbf:
             r = shapefile.Reader(shp=myshp, dbf=mydbf)
             shapes = r.shapeRecords()
             elev_points = []
@@ -215,25 +259,30 @@ def elev_from_points_to_roads():
 
     for road in road_list:
 
-        print("\nProcessing road")
+        print("\nProcessing road with coordinates", list(road.points.items())[0][0])
         for elev_k, elev_v in elevation_points.items():
-
+            target_point = [0, accuracy]
             for road_k, road_v in road.points.items():
                 x1, y1 = elev_k
                 x2, y2 = road_k
                 diag = ((max(x1, x2) - min(x1, x2))**2 +
                         (max(y1, y2) - min(y1, y2))**2)**0.5
-                if diag < accuracy:
-                    print("Coordinates ", road_k, " bonded to elev = ", elev_v, "with accuracy", diag)
-                    acc_level += 1
-                    road.points[road_k] = elev_v
-                    break
+
+                # Finding The least diagonal possible for elevation                
+                if (diag < target_point[1]): 
+                    target_point = [road_k, diag] 
+            if target_point[1] < accuracy:
+                print("Coordinates ", target_point[0], " bonded to elev = ", elev_v, "with accuracy", round(target_point[1], 2))
+                acc_level += 1 
+                road.points[target_point[0]] = elev_v
+
         print("Road finished")
 
 
 def main():
 
-    parse()
+    # parse()
+    hello_user()
     read_files()
     elev_from_points_to_roads()
     for road in road_list:
@@ -260,7 +309,7 @@ def save_results():
 
 
 def show_statistic():
-    os.system('cls')
+    # os.system('cls')
     print()
     for number_of_road in range(len(road_list)):
         print(f'Line №{number_of_road+1} contains', (len(road_list[number_of_road].corners)-1), 'sector(s)')
@@ -274,7 +323,11 @@ def show_statistic():
     print('With accuracy =', accuracy, 'metres')
     print()
 
+if __name__ == "__main__":
+	start_time = time.time()
 
-main()
-save_results()
-show_statistic()
+	main()
+	save_results()
+	show_statistic()
+
+	print("Finished in", round((time.time() - start_time), 2), "second(s).")
